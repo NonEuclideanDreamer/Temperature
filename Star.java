@@ -18,7 +18,7 @@ public class Star
 			c=300000*3600,
 			rulescope=SolarSystem.rulescope, metric=2;
 	static int dim=3,background=Color.black.getRGB();
-	static int white=Color.white.getRGB(),sirius=new Color(180,199,255).getRGB(), red=Color.red.getRGB(),orange=Color.orange.brighter().getRGB(),yellow=Color.yellow.brighter().brighter().getRGB(),blue=Color.blue.brighter().getRGB();
+	static int white=Color.white.getRGB(),sirius=new Color(180,199,255).getRGB(), red=Color.red.getRGB(),orange=Color.orange.getRGB(),yellow=Color.yellow.brighter().brighter().getRGB(),blue=Color.blue.brighter().getRGB();
 
 	//location attributes
 	double[]loc, v;//v is actually relativistic momentum
@@ -46,7 +46,7 @@ public class Star
 	public static int color(double temp)
 	{
 		if (temp<1250) return red;
-		if (temp<3000) return orange;
+		if (temp<3700) return orange;
 		if (temp<6000) return yellow;
 		if (temp<8000) return white;
 		else return blue;
@@ -68,24 +68,28 @@ public class Star
 			loc[i]+=t*speed;
 		}
 	}
+	
 	//****************************
 	//draw the star onto the image
 	//****************************
-	public void draw(BufferedImage image, int[] center, double scale) 
+	public void draw(BufferedImage image, int[] center, double scale, double[][] zBuffer, int x0, int y0) 
 	{
-		double factor=100;//exaccerated star size
-		for(int i=center[0]-(int)((factor*radius-loc[0])*scale);i<center[0]+(loc[0]+factor*radius)*scale;i++)
+		double factor=50;//exaccerated star size
+		for(int i=Math.max(x0, center[0]-(int)((factor*radius-loc[0])*scale));i<center[0]+(loc[0]+factor*radius)*scale&&i<image.getWidth();i++)
 		{
 			double s=Math.sqrt(factor*factor*radius*radius-Math.pow((i-center[0])/scale-loc[0], 2));
-			for(int j=center[1]-(int)((s-loc[1])*scale);j<center[1]+(loc[1]+s)*scale;j++)
+			for(int j=Math.max(0, center[1]-(int)((s-loc[1])*scale));j<center[1]+(loc[1]+s)*scale&&j<1440;j++)
+			if(zBuffer[i-x0][j-y0]<loc[2]){
+				zBuffer[i-x0][j-y0]=loc[2];
 				image.setRGB(i, j, color);
+			}
 		}
 	}	
 	
 	//************
 	// vector norm
 	//************
-	private double norm(double[] vec) 
+	static double norm(double[] vec) 
 	{
 		double out=0;
 		for(int i=0;i<dim;i++)

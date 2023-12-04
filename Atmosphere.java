@@ -11,22 +11,25 @@ import java.io.File;
 import java.io.IOException;
 import java.text.DecimalFormat;
 import java.util.ArrayList;
+import java.util.Random;
 
 import javax.imageio.ImageIO;
 
 public class Atmosphere 
 {
 	Planet pl;
-	
+	ArrayList<Clan> clans=new ArrayList<Clan>();
 	static String name="hundreddays30deg", type="png";
 	static DecimalFormat df=new DecimalFormat("0000");
 	static double sigma=5.67/Math.pow(10, 8),	//HelmholtzBolzmann constant
 			delt=3;
 	double r=600;
 	double c=7000;//=specific heatcapacity*density
-	double[][]temperature;
+	double[][]temperature, population;
+	double[][][]v;
 	static double[]zro= {0,0,0};
-	
+	static Random rand=new Random();
+	static boolean comment=false;
 	//************
 	//Constructors
 	//************
@@ -34,6 +37,7 @@ public class Atmosphere
 	{
 		r=radius;
 		temperature=new double[(int) (2*Math.PI*r)][(int) (Math.PI*r)];
+		v=new double[temperature.length][temperature[0].length][2];//v[0] is angle, v[1] is norm
 	}
 	
 	//uniform temperature t
@@ -42,6 +46,9 @@ public class Atmosphere
 		pl=planet;
 		r=radius;
 		temperature=new double[(int) (2*Math.PI*r)][(int) (Math.PI*r)];
+		population=new double[(int) (2*Math.PI*r)][(int) (Math.PI*r)];
+		v=new double[temperature.length][temperature[0].length][2];
+
 		for(int i=0;i<temperature.length;i++)
 			for(int j=0;j<temperature[i].length;j++)
 				temperature[i][j]=t;
@@ -76,6 +83,8 @@ public class Atmosphere
 				if(jp==temp[0].length) {jp--;i2=(i+temp.length/2)%temp.length;}
 				temperature[i][j]=0.25*(temp[i1][jm]+temp[i2][jp]+FlowField.average(temp, loc1)+FlowField.average(temp, loc0));
 			}
+				
+		
 	}
 	
 	public void update(ArrayList<Star> stars,double t) 
@@ -103,6 +112,8 @@ public class Atmosphere
 				}
 			}
 		}
+		
+		
 		double[][]temp=temperature.clone();
 		for(int i=0;i<temperature.length;i++)
 			for(int j=0;j<temperature[i].length;j++) 
@@ -113,9 +124,196 @@ public class Atmosphere
 				if(jm==-1) {jm=0;i1=(i+temp.length/2)%temp.length;}
 				if(jp==temp[0].length) {jp--;i2=(i+temp.length/2)%temp.length;}
 				temperature[i][j]=0.25*(temp[i1][jm]+temp[i2][jp]+FlowField.average(temp, loc1)+FlowField.average(temp, loc0));
+				//Chances for spawning a clan
+				if(population[i][j]<0.01)	if(rand.nextDouble()<0.000000000005*Math.sin(j/r)*Math.pow(40-Math.abs(temperature[i][j]-295),3))clans.add(new Clan(this, new double[] {i,j}));
+			}
+		
+			//clans
+			for(int i=clans.size()-1;i>-1;i--)
+			{
+				Clan cl=clans.get(i);
+				double tmp=temperature[(int)cl.loc[0]][(int)cl.loc[1]];
+				if(tmp>cl.livzone[1]+cl.comfortzone[1]||tmp<cl.livzone[0]+cl.comfortzone[0]||population[(int)cl.loc[0]][(int)cl.loc[1]]>Math.sin(cl.loc[1]/r)*100*cl.size) {System.out.println("demise of clan("+cl.loc[0]+","+cl.loc[1]+")");population[(int)cl.loc[0]][(int)cl.loc[1]]-=cl.size;clans.remove(i);}
+				else if(tmp<cl.comfortzone[1]&&tmp>cl.comfortzone[0]&&population[(int)cl.loc[0]][(int)cl.loc[1]]<Math.sin(cl.loc[1]/r)*10*cl.size)
+				{
+					if(rand.nextDouble()<.25&&rand.nextDouble()*cl.size>3.5)clans.add(cl.split());
+					else if(rand.nextDouble()<0.7) cl.evolve(rand.nextDouble()*0.8);
+				}
+				else
+				{
+					cl.move();
+				}
 			}
 	}
+	
+	//for wind
+	private void advect(double t) 
+	{
+		int x=temperature.length,y=x/2;
+		double[][][]vc=v.clone();
+		for(int i=0;i<x;i++)
+		{	for(int j=0;j<y;j++) 
+			if(v[i][j][1]>0.01)
+			{
+				double psi=(j+0.1)/r,vn=vc[i][j][1]/r,alpha=vc[i][j][0],psinew=Math.acos(Math.cos(psi)*Math.cos(vn)+Math.sin(psi)*Math.sin(vn)*Math.cos(alpha)) ,
+						delphi=Math.acos((Math.cos(vn)-Math.cos(psinew)*Math.cos(psi))/(Math.sin(psinew)*Math.sin(psi))), alphanew=Math.acos((Math.cos(vn)*Math.cos(psinew)-Math.cos(psi))/(Math.sin(vn)*Math.sin(psinew))),
+						inew=(i+r*delphi+x)%x, jnew=Math.min(Math.max(0.001, r*psinew),y-0.1);
+				double[]lc= {inew,jnew};
+				
+				v[i][j]=FlowField.average(v,lc);
+				v[i][j][0]+=alpha-alphanew;
+				if(Double.isNaN(v[i][j][1])||Double.isInfinite(v[i][j][1])) {v[i][j][1]=0;v[i][j][0]=0;}//System.out.println("advect error");
+				else temperature[i][j]=FlowField.average(temperature, lc);
+			
+			}
+		}
+	}
 
+	public void updateWind(ArrayList<Star> stars,double t) 
+	{
+		for(int i=0;i<temperature.length;i++)
+		{	for(int j=0;j<temperature[i].length;j++) 
+			{
+			temperature[i][j]-=sigma/c*Math.pow(temperature[i][j], 4)*t;//}
+			}
+		}
+		if(comment) {System.out.println("Cool Down");	FlowField.print(temperature);}
+		for(Star st:stars)
+		{
+			double[] ph=phipsi(st); //where on the map is the star in zenit?
+			double d=norm(subtract(st.loc,pl.loc));
+			for(int i=0;i<temperature.length;i++)
+			{	for(int j=0;j<temperature[i].length;j++) 
+				{
+				double dist=spherdist(ph[0]+pl.greenwich,ph[1],i/r,j/r);
+				
+					if(dist<Math.PI/2)
+						{
+							double in=st.temperature*Math.sqrt(st.radius/d);
+							temperature[i][j]+=sigma/c*(in*in*in*in*Math.cos(dist))*t;
+						}
+					
+					//Chances for spawning a clan
+					//	if(population[i][j]<0.01)	if(rand.nextDouble()<0.000000000005*Math.sin(j/r)*Math.pow(40-Math.abs(temperature[i][j]-295),3))clans.add(new Clan(this, new double[] {i,j}));
+					}}
+				/*
+					//clans
+					for(int i=clans.size()-1;i>-1;i--)
+					{
+						Clan cl=clans.get(i);
+						double tmp=temperature[(int)cl.loc[0]][(int)cl.loc[1]];
+						if(tmp>cl.livzone[1]+cl.comfortzone[1]||tmp<cl.livzone[0]+cl.comfortzone[0]||population[(int)cl.loc[0]][(int)cl.loc[1]]>Math.sin(cl.loc[1]/r)*100*cl.size) {System.out.println("demise of clan("+cl.loc[0]+","+cl.loc[1]+")");population[(int)cl.loc[0]][(int)cl.loc[1]]-=cl.size;clans.remove(i);}
+						else if(tmp<cl.comfortzone[1]&&tmp>cl.comfortzone[0]&&population[(int)cl.loc[0]][(int)cl.loc[1]]<Math.sin(cl.loc[1]/r)*10*cl.size)
+						{
+							if(rand.nextDouble()<.25&&rand.nextDouble()*cl.size>3.5)clans.add(cl.split());
+							else if(rand.nextDouble()<0.7) cl.evolve(rand.nextDouble()*0.8);
+						}
+						else
+						{
+							cl.move();
+						}
+					}
+			*/
+		}
+		if(comment) {System.out.println("Warm up");	FlowField.print(temperature);}
+
+		//advect
+				advect(delt);
+				
+				if(comment) {	System.out.println("advect");FlowField.print(temperature);FlowField.print(v);}
+				corriolis(0.5);
+				if(comment) {System.out.println("Wind up");	FlowField.print(v);}
+				relax(pl.radius/r);
+				if(comment) {System.out.println("relax");	FlowField.print(v);}
+		double[][]temp=temperature.clone();
+		
+		
+		for(int i=0;i<temperature.length;i++)
+			for(int j=0;j<temperature[i].length;j++) 
+			{
+				int jm=j-1,jp=j+1,i1=i,i2=i;
+				double psired=Math.acos(Math.cos(j/r)*Math.cos(1/r)),phidiff=Math.atan2(Math.sin(1/r),Math.sin(j/r)*Math.cos(1/r));
+				double[]loc0= {(i+temp.length-r*phidiff)%temp.length,r*psired},loc1= {(i+r*phidiff)%temp.length,r*psired};
+				if(jm==-1) {jm=0;i1=(i+temp.length/2)%temp.length;}
+				if(jp==temp[0].length) {jp--;i2=(i+temp.length/2)%temp.length;}
+				temperature[i][j]=0.25*(temp[i1][jm]+temp[i2][jp]+FlowField.average(temp, loc1)+FlowField.average(temp, loc0));
+				//Chances for spawning a clan
+			//	if(temperature[i][j]<313&&temperature[i][j]>263)
+				//	if(rand.nextDouble()<0.000000000005*Math.sin(j/r)*Math.pow(40-Math.abs(temperature[i][j]-295),3))clans.add(new Clan(this, new double[] {i,j}));
+			}
+	if(comment)	{	System.out.println("diffuse");	FlowField.print(temperature);FlowField.print(v);}
+	}
+
+	private void relax(double delx)
+	{
+		double max=10,bound=0.001;
+		int l=0,k=0;
+		//System.out.println("i="+f.vectorfield[0][0].length);
+		int x=temperature.length,y=x/2;
+
+		double[][][]q=new double[2][x][y];
+		double[][]div=divergence();
+		while(max>bound&&l<100)//500l<400&&
+		{
+			
+			//poisson:
+		
+			max=0;
+			for(int i=0;i<x;i++)
+				for(int j=0;j<y;j++)
+				{
+					int jm=j-1,jp=j+1,i1=i,i2=i;
+					double psi=(j+0.1)/r,psired=Math.acos(Math.cos(psi)*Math.cos(1/r)),phidiff=Math.atan2(Math.sin(1/r),Math.sin(psi)*Math.cos(1/r));
+					double[]loc0= {(i+x-r*phidiff)%x,Math.max(y-.0001, r*psired)},loc1= {(i+r*phidiff)%x,Math.max(y-.0001, r*psired)};
+					if(jm==-1) {jm=0;i1=(i+x/2)%x;}
+					if(jp==y) {jp--;i2=(i+x/2)%x;}
+					q[1-k][i][j]=0.25*(q[k][i1][jm]+q[k][i2][jp]+FlowField.average(q[k], loc1)+FlowField.average(q[k], loc0)-0.01*div[i][j]);
+					max=Math.max(max, Math.abs(q[0][i][j]-q[1][i][j]));
+				}
+			l++;k=l%2;
+		}
+		//		System.out.println("q");
+		//	FlowField.print(q[k]);
+		for(int i=0;i<x;i++)
+			for(int j=0;j<y;j++)
+				{
+					double vx=Math.sin(v[i][j][0])*v[i][j][1],vy=Math.cos(v[i][j][0])*v[i][j][1];
+					int jm=j-1,jp=j+1,i1=i,i2=i;
+					if(jm==-1) {jm=0;i1=(i+x/2)%x;}
+					if(jp==y) {jp--;i2=(i+x/2)%x;}
+					vy-=(q[k][i2][jp]-q[k][i1][jm])/2;
+					
+					i1=(i+x-1)%x; i2=(i+1)%x;
+					vx-=(q[k][i2][j]-q[k][i1][j])/2/Math.max(0.01, Math.sin(j/r));
+					v[i][j][0]=Math.atan2(vx, vy);
+					v[i][j][1]=Math.sqrt(vx*vx+vy*vy);
+					if(Double.isNaN(v[i][j][1])||Double.isInfinite(v[i][j][1]))System.out.println("relax error");
+
+				}
+		
+	}
+
+	private double[][] divergence() 
+	{
+		int x=temperature.length,y=x/2;
+		double delx=pl.radius/r;
+	double [][]out=new double[x][y];//	System.out.println("div=");FlowField.print(v);
+		for(int i=0;i<x;i++)
+			for(int j=0;j<y;j++)
+			{
+				int jm=j-1,jp=j+1,i1=i,i2=i;
+				double psired=Math.acos(Math.cos(j/r)*Math.cos(1/r)),phidiff=Math.atan2(Math.sin(1/r),Math.sin(j/r)*Math.cos(1/r));
+				double[]loc0= {(i+x-r*phidiff)%x,r*psired},loc1= {(i+r*phidiff)%x,r*psired};
+				if(jm==-1) {jm=0;i1=(i+x/2)%x;}
+				if(jp==y) {jp--;i2=(i+x/2)%x;}
+				double[] vp=FlowField.average(v, loc1), vm=FlowField.average(v, loc0);
+				out[i][j]=0.5*(-v[i1][jm][1]*Math.cos(v[i1][jm][0])+v[i2][jp][1]*Math.cos(v[i2][jp][1])+vp[1]*Math.sin(vp[0])-vm[1]*Math.sin(vm[0]));	
+				
+				//FlowField.print(loc1);
+			}
+			
+		return out;
+	}
 
 	//distance between spots on sphere
 	private double spherdist(double phi, double psi, double phi1, double psi1) 
@@ -170,18 +368,15 @@ public class Atmosphere
 	}
 
 	
-
-
-	
 	//**************
 	// vector methods
 	//**************
-	private double norm(double[] v) 
+	static double norm(double[] v) 
 	{
 		return Math.sqrt(dot(v,v));
 	}
 
-	private double dot(double[] v, double[] w) 
+	private static double dot(double[] v, double[] w) 
 	{
 		double out=0;
 		for(int i=0;i<v.length;i++)out+=v[i]*w[i];
@@ -199,6 +394,43 @@ public class Atmosphere
 	public void setC(double c1)
 	{
 		c=c1;
+	}
+	
+	public double[] gradient(int i,int j)
+	{
+		int jp=Math.min(j+1,temperature[0].length-1),jm=Math.max(j-1,0),im=i-1,ip=i+1;
+		if(im<0)im=temperature.length-1;
+		if(ip==temperature.length)ip=0;
+		
+		return new double[] {(temperature[ip][j]-temperature[im][j])/Math.sin((j+0.1)/r),temperature[i][jp]-temperature[i][jm]};
+		
+	}
+
+	public void setT(double t) 
+	{
+		for(int i=0;i<temperature.length;i++)
+			for(int j=0;j<temperature[i].length;j++)
+				temperature[i][j]=t;
+	}
+	
+	public void corriolis(double strength)
+	{
+		for(int i=0;i<temperature.length;i++)
+			for(int j=0;j<temperature[i].length;j++)
+			{
+				double[] gr=gradient(i,j);
+				//simulation the pressure bias, although not correctly
+				double x=Math.sin(v[i][j][0])*v[i][j][1]-strength*gr[0],
+						y=Math.cos(v[i][j][0])*v[i][j][1]-strength*gr[1];
+				//corriolis
+				double factor=2*Math.cos(j/r)/pl.sidday,
+						ax=-factor*y, ay=factor*x;
+				x=x+ax;y=y+ay;
+				v[i][j][0]=Math.atan2(x,y);//Math.pow(Math.sin(j/r),2)*strength/pl.sidday+
+				v[i][j][1]=Math.sqrt(x*x+y*y);
+				if(Double.isNaN(v[i][j][1])||Double.isInfinite(v[i][j][1])){v[i][j][0]=0;v[i][j][1]=0;}//System.out.println("corriolis error");
+
+			}
 	}
 	
 	//Test method from before merging it with orbits

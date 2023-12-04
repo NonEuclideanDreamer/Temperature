@@ -45,7 +45,13 @@ public class Planet
 		sidday=48;
 		color=cl.getRGB();
 	}
-
+	public Planet(double[]l,double[]vel,double r,double m) 
+	{
+		mass=m;
+		radius=r;
+		loc=l;
+		v=vel;
+	}
 	//******************************
 	// Change the Planets attributes
 	//******************************
@@ -79,16 +85,17 @@ public class Planet
 	//*********************
 	// Draw planet to image
 	//*********************
-	public void draw(BufferedImage image, int[] center, double scale) 
+	public void draw(BufferedImage image, int[] center, double scale, double[][] zBuffer, int x0, int y0) 
 	{
-		double factor=1000;
-		for(int i=center[0]-(int)((factor*radius-loc[0])*scale);i<center[0]+(loc[0]+factor*radius)*scale;i++)
+		double factor=2000;
+		for(int i=Math.max(x0,center[0]-(int)((factor*radius-loc[0])*scale));i<center[0]+(loc[0]+factor*radius)*scale;i++)
 		{
 			double s=Math.sqrt(factor*factor*radius*radius-Math.pow((i-center[0])/scale-loc[0], 2));
-			for(int j=center[1]-(int)((s-loc[1])*scale);j<center[1]+(loc[1]+s)*scale;j++)
-			{
-				image.setRGB(i, j, color);
-			}
+			for(int j=Math.max(y0,  center[1]-(int)((s-loc[1])*scale));j<center[1]+(loc[1]+s)*scale;j++)
+				if(zBuffer[i-x0][j-y0]<loc[2]){
+					zBuffer[i-x0][j-y0]=loc[2];
+					image.setRGB(i, j, color);
+				}
 		}
 	}
 	
@@ -148,7 +155,7 @@ public class Planet
 		return out;
 	}
 
-	private double[] subtract(double[] v, double[] w)
+	static double[] subtract(double[] v, double[] w)
 	{
 		double[]out=new double[v.length];
 		for(int i=0;i<v.length;i++)
@@ -162,5 +169,8 @@ public class Planet
 		for(int i=0;i<v.length;i++)out+=v[i]*w[i];
 		return out;
 	}
+
+	
+	
 	
 }
