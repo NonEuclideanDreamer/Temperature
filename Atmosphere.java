@@ -19,17 +19,21 @@ public class Atmosphere
 {
 	Planet pl;
 	ArrayList<Clan> clans=new ArrayList<Clan>();
-	static String name="hundreddays30deg", type="png";
+	ArrayList<Plant>plants=new ArrayList<Plant>();
+	ArrayList<Animal>animals=new ArrayList<Animal>();
+	static String name="try", type="png";
 	static DecimalFormat df=new DecimalFormat("0000");
 	static double sigma=5.67/Math.pow(10, 8),	//HelmholtzBolzmann constant
 			delt=3;
 	double r=600;
 	double c=7000;//=specific heatcapacity*density
-	double[][]temperature, population;
+	double[][]temperature, population,nutrition, vegetation;
 	double[][][]v;
 	static double[]zro= {0,0,0};
 	static Random rand=new Random();
 	static boolean comment=false;
+	//boolean diploid=true;
+	
 	//************
 	//Constructors
 	//************
@@ -47,11 +51,16 @@ public class Atmosphere
 		r=radius;
 		temperature=new double[(int) (2*Math.PI*r)][(int) (Math.PI*r)];
 		population=new double[(int) (2*Math.PI*r)][(int) (Math.PI*r)];
+		vegetation=new double[(int) (2*Math.PI*r)][(int) (Math.PI*r)];
+		nutrition=new double[(int) (2*Math.PI*r)][(int) (Math.PI*r)];
 		v=new double[temperature.length][temperature[0].length][2];
 
 		for(int i=0;i<temperature.length;i++)
 			for(int j=0;j<temperature[i].length;j++)
+			{
 				temperature[i][j]=t;
+				nutrition[i][j]=20;
+			}
 	}
 
 	//***************
@@ -125,8 +134,147 @@ public class Atmosphere
 				if(jp==temp[0].length) {jp--;i2=(i+temp.length/2)%temp.length;}
 				temperature[i][j]=0.25*(temp[i1][jm]+temp[i2][jp]+FlowField.average(temp, loc1)+FlowField.average(temp, loc0));
 				//Chances for spawning a clan
-				if(population[i][j]<0.01)	if(rand.nextDouble()<0.000000000005*Math.sin(j/r)*Math.pow(40-Math.abs(temperature[i][j]-295),3))clans.add(new Clan(this, new double[] {i,j}));
+				//if(population[i][j]<0.01)	if(rand.nextDouble()<0.000000000005*Math.sin(j/r)*Math.pow(40-Math.abs(temperature[i][j]-295),3))clans.add(new Clan(this, new double[] {i,j}));
+				//Chances for spawning a plant
+			//	if(diploid)
+				{
+					if(vegetation[i][j]+population[i][j]<0.01)	if(rand.nextDouble()<0.00000000024*Math.sin(j/r)*Math.pow(40-Math.abs(temperature[i][j]-295),3)/Math.log(Math.E+plants.size()+animals.size()))plants.add(new Plant(this, new double[] {i,j},1));
+
+				}
+			//	else 
+				{
+				if(vegetation[i][j]<0.01)	if(rand.nextDouble()<0.00000000008*Math.sin(j/r)*Math.pow(40-Math.abs(temperature[i][j]-295),3)/Math.log(Math.E+plants.size()))plants.add(new Plant(this, new double[] {i,j}));
+				//Chances for spawning a clan
+				if(population[i][j]<0.01)	if(rand.nextDouble()<0.0000000003*Math.sin(j/r)*Math.pow(40-Math.abs(temperature[i][j]-295),3)/Math.log(Math.E+animals.size()))animals.add(new Animal(this, new double[] {i,j}));
+			}}
+			
+	/*	if(diploid)
+		{
+			if(plants.size()+animals.size()==0)plants.add(new Plant(this,new double[] {rand.nextDouble()*temperature.length,rand.nextDouble()*temperature[0].length},1));
+		}
+		else {
+		if(plants.size()==0)plants.add(new Plant(this,new double[] {rand.nextDouble()*temperature.length,rand.nextDouble()*temperature[0].length}));
+		if(animals.size()==0)animals.add(new Animal(this,new double[] {rand.nextDouble()*temperature.length,rand.nextDouble()*temperature[0].length}));}*/
+//plants
+		for(int i=plants.size()-1;i>-1;i--)
+		{
+			Plant pl=plants.get(i);
+			int x=(int)pl.loc[0],y=(int)pl.loc[1];
+		//	System.out.println("energy="+pl.energy+", minres="+pl.minreservoir+", size="+pl.size+", maxsize="+pl.maxsize+", leaves="+pl.leaves);
+			double tmp=temperature[x][y],  diff=Math.abs(tmp-pl.idealtemp);
+			int sg=1;
+			if(tmp<pl.idealtemp)sg=0;
+			double win=(tmp*pl.leavefficiency*Math.min(1,Math.pow((1+pl.size)/(1+vegetation[x][y]-pl.size),5.2)/1000)-diff/Math.pow(1+pl.durability[2+sg],2)/6000);
+			if(pl.leaves>0)
+				{
+				  win*=pl.leaves;
+				  if(win>0)
+					 {
+				 		pl.energy+=win;
+				  		if(rand.nextDouble()<pl.beh[0])pl.growLeaf();
+				  }
+				  else if(rand.nextDouble()<pl.beh[1]) {pl.leaves--;//System.out.println("losing leaves");
+				  nutrition[x][y]+=(1+pl.leavefficiency)*0.15;}
+				  else pl.energy+=win;
+				}
+			else
+			{
+				if(win>0&&rand.nextDouble()<pl.beh[3])pl.growLeaf();
 			}
+			if(pl.size>0)
+			pl.energy-=pl.size*(diff*diff)/Math.pow(1+pl.durability[sg],2)/400;
+			else
+				pl.energy-=diff/Math.pow(1+pl.durability[sg+4], 2)/3000;
+			if( pl.energy<0) 
+			{
+				nutrition[x][y]+=pl.size*pl.growenergy();
+				vegetation[(int) pl.loc[0]][(int) pl.loc[1]]-=pl.size;
+				plants.remove(i);
+			}
+			else if(pl.energy>pl.minreservoir)
+			{
+				if(rand.nextDouble()<pl.beh[4]/delt)
+				{
+					if(pl.size<pl.maxsize)pl.grow();
+					else 
+					{
+					//	System.out.println("plant fullsized and ready");
+						if(pl.diploid)animals.add(pl.baby());
+						else plants.add(pl.seed());
+					}
+				}	
+			}
+		}
+		//animals they have two moves per round. eat&then move or multiply or grow
+		for(int i=animals.size()-1;i>-1;i--)
+		{
+			Animal an=animals.get(i);
+			double oldenergy=an.energy;
+			double tmp=temperature[(int)an.loc[0]][(int)an.loc[1]],diff=Math.abs(tmp-an.idealtemp);
+			int sg=1;
+			if(tmp<an.idealtemp)sg=0;
+			int x=(int)an.loc[0],y=(int)an.loc[1];
+			
+			if(vegetation[x][y]*(an.leavestomach+an.plantstomach)>nutrition[x][y]*an.carrionstomach)
+			{
+				boolean found=false;
+				int j=0;
+				while(!found&j<plants.size())
+				{
+					Plant pl=plants.get(j);
+					if (x==(int)pl.loc[0]&&y==(int)pl.loc[1])
+					{
+						double r=rand.nextDouble();
+						//if(pl.leaves+pl.size==0)an.eatSeed(pl);
+						
+						 if(r<an.leavestomach/(1+an.plantstomach+an.leavestomach)&&pl.leaves>0)an.eatLeaf(pl);
+						else if(r<(an.leavestomach+an.plantstomach)/(1+an.plantstomach+an.leavestomach)&&pl.size>0)an.eatPlant(pl);
+						else		an.eatBattery(pl);
+						found=true;
+						
+					}
+					else j++;
+				}
+				
+			}
+			else an.eatNutrition();
+			
+			an.energy-=an.livenergy(diff,sg);
+
+			if(an.energy<0) {System.out.println("demise of animal("+an.loc[0]+","+an.loc[1]+")");population[(int)an.loc[0]][(int)an.loc[1]]-=an.size*an.growenergy();animals.remove(i);nutrition[x][y]+=an.size/2;}
+			else if(population[(int)an.loc[0]][(int)an.loc[1]]>an.size) {if(an.energy<oldenergy)
+			{
+				double r=rand.nextDouble();
+				if(r<an.beh[0])an.moveTemp();
+				else if(r<an.beh[0]+an.beh[1]) an.movetoFood();
+			}
+			else if(an.energy>an.minreservoir)
+			{
+				double r=rand.nextDouble();
+				if(r<an.beh[2]) {
+				if(an.size>an.maxsize) {if(an.diploid)plants.add(an.seedout());else animals.add(an.seed());}
+				else an.grow();}
+			//	else if(r<0.6)an.growstomach();
+			}}
+			else
+			{
+				if(an.energy>an.minreservoir)
+				{
+					double r=rand.nextDouble();
+					if(r<an.beh[2]) {
+					if(an.size>an.maxsize) {if(an.diploid)plants.add(an.seedout());else animals.add(an.seed());}
+					else an.grow();}
+				//	else if(r<0.6)an.growstomach();
+				}
+				else if(an.energy<oldenergy)
+				{
+					double r=rand.nextDouble();
+					if(r<an.beh[0])an.moveTemp();
+					else if(r<an.beh[0]+an.beh[1]) an.movetoFood();
+				}
+			}
+
+		}
 		
 			//clans
 			for(int i=clans.size()-1;i>-1;i--)
@@ -144,8 +292,12 @@ public class Atmosphere
 					cl.move();
 				}
 			}
-	}
 	
+	
+	//decompose
+	for(int i=0;i<nutrition.length;i++)
+		for(int j=0;j<nutrition[i].length;j++)nutrition[i][j]/=Math.pow(temperature[i][j]/375,16)+1;
+	}
 	//for wind
 	private void advect(double t) 
 	{

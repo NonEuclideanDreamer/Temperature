@@ -19,7 +19,7 @@ public class Star
 			rulescope=SolarSystem.rulescope, metric=2;
 	static int dim=3,background=Color.black.getRGB();
 	static int white=Color.white.getRGB(),sirius=new Color(180,199,255).getRGB(), red=Color.red.getRGB(),orange=Color.orange.getRGB(),yellow=Color.yellow.brighter().brighter().getRGB(),blue=Color.blue.brighter().getRGB();
-
+static double count=0;
 	//location attributes
 	double[]loc, v;//v is actually relativistic momentum
 	
@@ -38,6 +38,8 @@ public class Star
 		v=vel;
 		temperature=t;
 		color=color(t);
+		//color=spectrum((int)count);
+	//	count+=(6*256.0)/1000;
 	}
 	
 	//******************************************************
@@ -45,7 +47,7 @@ public class Star
 	//*****************************************************
 	public static int color(double temp)
 	{
-		if (temp<1250) return red;
+		if (temp<1700) return red;
 		if (temp<3700) return orange;
 		if (temp<6000) return yellow;
 		if (temp<8000) return white;
@@ -74,14 +76,18 @@ public class Star
 	//****************************
 	public void draw(BufferedImage image, int[] center, double scale, double[][] zBuffer, int x0, int y0) 
 	{
-		double factor=50;//exaccerated star size
+		double factor=10;//exaccerated star size
+		//System.out.println("Star at i="+(center[0]+(int)(loc[0])*scale)+", j="+(center[1]+(int)(loc[1])*scale)+" with radius "+(factor*radius*scale));
 		for(int i=Math.max(x0, center[0]-(int)((factor*radius-loc[0])*scale));i<center[0]+(loc[0]+factor*radius)*scale&&i<image.getWidth();i++)
 		{
 			double s=Math.sqrt(factor*factor*radius*radius-Math.pow((i-center[0])/scale-loc[0], 2));
-			for(int j=Math.max(0, center[1]-(int)((s-loc[1])*scale));j<center[1]+(loc[1]+s)*scale&&j<1440;j++)
-			if(zBuffer[i-x0][j-y0]<loc[2]){
-				zBuffer[i-x0][j-y0]=loc[2];
+			for(int j=Math.max(0, center[1]-(int)((s-loc[1])*scale));j<center[1]+(loc[1]+s)*scale&&j<image.getHeight();j++)
+			//if(zBuffer[i-x0][j-y0]<loc[2])
+				{
+				//System.out.println("i="+i+", j="+j+", color="+color);
+				//zBuffer[i-x0][j-y0]=loc[2];
 				image.setRGB(i, j, color);
+				
 			}
 		}
 	}	
@@ -96,6 +102,25 @@ public class Star
 			out+=vec[i]*vec[i];
 		return Math.sqrt(out);
 	}
-
+	public static int spectrum(int n)
+	{
+		n=n%(6*256);
+		if (n<256)
+			return new Color(255,n,0).getRGB();
+		n-=256;
+		if (n<256)
+			return new Color(255-n,255,0).getRGB();
+		n-=256;
+		if (n<256)
+			return new Color(0,255,n).getRGB();
+		n-=256;
+		if (n<256)
+			return new Color(0,255-n,255).getRGB();
+		n-=256;
+		if (n<256)
+			return new Color(n,0,255).getRGB();
+		n-=256;
+			return new Color(255,0,255-n).getRGB();
+	}
 
 }

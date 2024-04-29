@@ -25,7 +25,7 @@ public class Planet
 	double mass, radius;
 	int  color;
 	
-	public static double atmradius=300;//how fine grained we simulate the atmosphere
+	public static double atmradius=172*144/108;//408;//how fine grained we simulate the atmosphere
 	
 	Atmosphere atm;
 	
@@ -34,6 +34,12 @@ public class Planet
 	//***********
 	public Planet(double[]l,double[]vel,double[] ax, double r,double m,Color cl) 
 	{
+		if (SolarSystem.big) 
+		{
+			if(SolarSystem.doble) {atmradius=229.3;}
+			else
+			atmradius=408;
+		}
 		mass=m;
 		radius=r;
 		loc=l;
@@ -41,12 +47,17 @@ public class Planet
 		axis=normalize(ax);
 		phinull=normalize(normcomp(ax,toplane(ax)));
 		phi90=cross(axis,phinull);
-		atm=new Atmosphere(this,atmradius,273);
+	if(SolarSystem.atm)	atm=new Atmosphere(this,atmradius,273);
 		sidday=48;
 		color=cl.getRGB();
 	}
 	public Planet(double[]l,double[]vel,double r,double m) 
 	{
+		if (SolarSystem.big)
+		{
+			if(SolarSystem.doble) {atmradius=229;System.out.println("doble");}
+			else atmradius=408;
+		}
 		mass=m;
 		radius=r;
 		loc=l;
@@ -87,13 +98,16 @@ public class Planet
 	//*********************
 	public void draw(BufferedImage image, int[] center, double scale, double[][] zBuffer, int x0, int y0) 
 	{
-		double factor=2000;
-		for(int i=Math.max(x0,center[0]-(int)((factor*radius-loc[0])*scale));i<center[0]+(loc[0]+factor*radius)*scale;i++)
-		{
+		double factor=400;
+	
+		for(int i=Math.max(x0,center[0]-(int)((factor*radius-loc[0])*scale));i<center[0]+(loc[0]+factor*radius)*scale&&i<image.getWidth();i++)
+		{	//System.out.println(i);
 			double s=Math.sqrt(factor*factor*radius*radius-Math.pow((i-center[0])/scale-loc[0], 2));
-			for(int j=Math.max(y0,  center[1]-(int)((s-loc[1])*scale));j<center[1]+(loc[1]+s)*scale;j++)
-				if(zBuffer[i-x0][j-y0]<loc[2]){
-					zBuffer[i-x0][j-y0]=loc[2];
+			for(int j=Math.max(y0,  center[1]-(int)((s-loc[1])*scale));j<center[1]+(loc[1]+s)*scale&&j<image.getHeight();j++)
+			//	if(i<x0+zBuffer.length&&j<y0+zBuffer[0].length)
+				//if(zBuffer[i-x0][j-y0]<loc[2])
+				{
+				//	zBuffer[i-x0][j-y0]=loc[2];
 					image.setRGB(i, j, color);
 				}
 		}
